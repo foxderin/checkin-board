@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>次元箱集市 · 巡游打卡面板</title>
+<title>狸想城批量签到</title>
 <style>
 :root{
   color-scheme:dark;
@@ -52,7 +52,7 @@ input[type=number]{width:66px;background:#0b0e13;color:var(--fg);border:1px soli
 .item.done .dot{background:var(--ok)}
 .item.failed .dot{background:var(--err)}
 @keyframes pulse{50%{opacity:.2}}
-.url{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg);text-decoration:none}
+.url{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg);cursor:pointer}
 .url:hover{color:var(--accent);text-decoration:underline}
 .item.done .url{color:var(--dim)}
 .tail{flex:none;color:#636d80;font:11px/1.6 ui-monospace,Menlo,monospace;
@@ -67,8 +67,8 @@ input[type=number]{width:66px;background:#0b0e13;color:var(--fg);border:1px soli
 </head>
 <body>
 <main>
-  <h1>次元箱集市 · 巡游打卡面板</h1>
-  <p class="sub">已内置 68 个打卡点 → 逐个打开 → 自动记录进度（进度保存在本机浏览器里）</p>
+  <h1>狸想城批量签到</h1>
+  <p class="sub">已内置 68 个签到点 → 逐个打开 → 自动记录进度（进度保存在本机浏览器里）</p>
 
   <div class="notice">
     请在 <a href="https://market.ciyuanxiang.com/" target="_blank" rel="noopener">https://market.ciyuanxiang.com/</a> 完成登录后再执行签到。
@@ -77,8 +77,8 @@ input[type=number]{width:66px;background:#0b0e13;color:var(--fg);border:1px soli
   <details class="card">
     <summary>使用说明 / 弹窗被拦截怎么办</summary>
     <ol>
-      <li>68 个打卡链接已经内置好了，登录后直接点「自动开始」或「手动逐个」即可。</li>
-      <li>要换成别的活动/链接：在输入框里按每行一条填写，支持 <code>名称 链接</code> 或只写链接，点「载入链接」即可（自动去重）。</li>
+      <li>68 个签到链接已经内置好了，登录后直接点「自动开始」或「手动逐个」即可（页面上不会显示链接本身）。</li>
+      <li>要替换或追加签到点：展开「1 · 自定义签到链接」，按每行一条粘贴，支持 <code>名称 链接</code> 或只写链接，点「载入链接」即可（自动去重）。</li>
       <li><b>自动模式</b>：按设定间隔逐个打开新标签页，停留若干秒后自动关闭（页面自己关掉的话会立刻继续下一个）。
           <b>需要浏览器允许本页弹窗</b>，否则会立即停下并提示。</li>
       <li><b>手动模式</b>（弹窗被拦时用）：点「手动逐个」，然后连续按 <kbd>空格</kbd> 打开下一个，按 <kbd>S</kbd> 跳过。
@@ -93,15 +93,15 @@ input[type=number]{width:66px;background:#0b0e13;color:var(--fg);border:1px soli
       另外签到用的是同一个账号，页面停留时间别调得太短（默认 8 秒），避免请求还没打完就被关掉。</p>
   </details>
 
-  <section class="card">
-    <h2>1 · 链接</h2>
-    <textarea id="input" placeholder="每行一条，可以写成：&#10;梦之狐工作室 https://market.ciyuanxiang.com/event/64dfxj/tour/checkin?code=A01-Sxv88tTA6w&#10;或只写链接"></textarea>
+  <details class="card">
+    <summary>1 · 自定义签到链接（一般不用动）</summary>
+    <textarea id="input" placeholder="如需替换或追加签到点，把链接粘在这里，每行一条；&#10;也可以写成「名称 链接」。留空则继续使用内置的 68 条。"></textarea>
     <div class="row">
       <button id="load" class="primary">载入链接</button>
       <label class="file-btn">从 txt/csv 文件导入<input type="file" id="file" accept=".txt,.csv,text/plain" hidden></label>
       <span class="dim" id="loadInfo"></span>
     </div>
-  </section>
+  </details>
 
   <section class="card">
     <h2>2 · 运行</h2>
@@ -207,7 +207,6 @@ const PRESET = [
   ['【嘉宾活动】陈吖猫 涂鸦文化分享', 'M11-uwfg2fd1Q0']
 ];
 const presetUrl = code => CHECKIN_BASE + code;
-const presetText = () => PRESET.map(([name, code]) => `${name} ${presetUrl(code)}`).join('\n');
 const PRESET_NAME = new Map(PRESET.map(([name, code]) => [presetUrl(code), name]));
 
 let items = [];          // {url, name, status:'pending'|'opening'|'done'|'failed', el}
@@ -272,9 +271,6 @@ function loadFromText(text){
   save(); render();
   $('#loadInfo').textContent = `已载入 ${parsed.length} 条`;
 }
-function syncTextarea(){
-  $('#input').value = items.map(i => i.name ? `${i.name} ${i.url}` : i.url).join('\n');
-}
 
 /* ---------- 渲染 ---------- */
 function render(){
@@ -286,18 +282,19 @@ function render(){
     row.className = 'item ' + it.status;
     const idx = document.createElement('span'); idx.className = 'idx'; idx.textContent = i + 1;
     const dot = document.createElement('span'); dot.className = 'dot';
-    const a = document.createElement('a');
-    a.className = 'url'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
-    a.textContent = it.name || it.url;
-    a.title = it.name ? `${it.name}\n${it.url}` : it.url;
-    a.addEventListener('click', () => setStatus(it, 'done'));
+    const code = codeOf(it.url);
+    const label = document.createElement('span');
+    label.className = 'url';
+    label.textContent = it.name || code || '未命名签到点';
+    label.title = it.name || code;
+    label.addEventListener('click', () => { window.open(it.url, '_blank'); setStatus(it, 'done'); });
     const acts = document.createElement('span'); acts.className = 'acts';
     acts.append(
       mkBtn('打开', () => { window.open(it.url, '_blank'); setStatus(it, 'done'); }),
       mkBtn('✓', () => setStatus(it, 'done')),
       mkBtn('↺', () => setStatus(it, 'pending'))
     );
-    row.append(idx, dot, a);
+    row.append(idx, dot, label);
     const tail = codeTag(it.url);
     if (it.name && tail) row.append(tail);
     row.append(acts);
@@ -315,12 +312,16 @@ function render(){
   updateProgress();
   if (!running) scrollToPending();
 }
-function codeTag(url){
+function codeOf(url){
   const m = url.match(/[?&]code=([^&]+)/);
-  if (!m) return null;
+  return m ? m[1].split('-')[0] : '';
+}
+function codeTag(url){
+  const t = codeOf(url);
+  if (!t) return null;
   const s = document.createElement('span');
   s.className = 'tail';
-  s.textContent = m[1].split('-')[0];
+  s.textContent = t;
   return s;
 }
 function mkBtn(label, fn){
@@ -477,11 +478,11 @@ document.addEventListener('keydown', e => {
 restore();
 if (items.length) {
   render();
-  syncTextarea();
   $('#loadInfo').textContent = `已从本地恢复 ${items.length} 条，进度已保留`;
 } else {
-  $('#input').value = presetText();
-  loadFromText($('#input').value);
+  items = PRESET.map(([name, code]) => ({url: presetUrl(code), name, status: 'pending'}));
+  save();
+  render();
   $('#loadInfo').textContent = `已内置 ${PRESET.length} 条`;
 }
 renderControls();
