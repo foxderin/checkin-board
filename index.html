@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>批量签到面板</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0d1016;--card:#161a22;--line:#252b37;--fg:#e8ecf3;
+  --dim:#8a93a6;--accent:#4f8cff;--ok:#3fb950;--err:#f85149;--warn:#d29922;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.6 system-ui,-apple-system,"Segoe UI","Noto Sans SC",sans-serif;}
+main{max-width:960px;margin:0 auto;padding:24px 20px 72px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:13px;margin:0 0 12px;color:var(--dim);font-weight:600;letter-spacing:.06em}
+.sub{color:var(--dim);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+summary{cursor:pointer;color:var(--dim);font-size:13px;font-weight:600;letter-spacing:.04em}
+details[open] summary{margin-bottom:12px}
+details ol,details p{color:var(--dim);font-size:13px}
+details code{background:#0b0e13;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12px}
+kbd{background:#0b0e13;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;
+  padding:1px 6px;font:12px ui-monospace,Menlo,monospace;color:var(--fg)}
+textarea{width:100%;min-height:110px;background:#0b0e13;color:var(--fg);border:1px solid var(--line);
+  border-radius:8px;padding:10px;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+button{background:#222836;color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+button:hover:not(:disabled){border-color:#3a4356}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+.opts label{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:13px}
+input[type=number]{width:66px;background:#0b0e13;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:5px 8px;font:inherit;font-family:inherit}
+.file-btn{display:inline-block;padding:8px 14px;border:1px dashed var(--line);border-radius:8px;
+  color:var(--dim);cursor:pointer;font-size:13px}
+.file-btn:hover{border-color:#3a4356;color:var(--fg)}
+.dim{color:var(--dim);font-size:13px}
+.progress{height:8px;background:#0b0e13;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:14px}
+#bar{height:100%;width:0;background:var(--accent);transition:width .25s}
+#statusline{margin-top:10px;min-height:22px;font-size:13px}
+.list{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid #1b202b;font-size:13px}
+.item:last-child{border-bottom:0}
+.item.cur{background:rgba(79,140,255,.13)}
+.item .idx{width:2.6em;color:var(--dim);font-variant-numeric:tabular-nums;text-align:right;flex:none}
+.dot{width:8px;height:8px;border-radius:50%;background:#4a5265;flex:none}
+.item.opening .dot{background:var(--accent);animation:pulse 1s infinite}
+.item.done .dot{background:var(--ok)}
+.item.failed .dot{background:var(--err)}
+@keyframes pulse{50%{opacity:.2}}
+.url{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg);text-decoration:none}
+.url:hover{color:var(--accent);text-decoration:underline}
+.item.done .url{color:var(--dim)}
+.tail{flex:none;color:#636d80;font:11px/1.6 ui-monospace,Menlo,monospace;
+  background:#0b0e13;border:1px solid var(--line);border-radius:4px;padding:0 6px}
+.acts{display:flex;gap:5px;flex:none}
+.mini{padding:3px 9px;font-size:12px;border-radius:6px}
+.notice{background:rgba(79,140,255,.1);border:1px solid rgba(79,140,255,.38);
+  border-radius:8px;padding:9px 14px;margin:0 0 16px;font-size:13px}
+.notice a{color:var(--accent);font-weight:600}
+.hint{color:var(--warn)}
+</style>
+</head>
+<body>
+<main>
+  <h1>次元箱集市 · 巡游打卡面板</h1>
+  <p class="sub">已内置 68 个打卡点 → 逐个打开 → 自动记录进度（进度保存在本机浏览器里）</p>
+
+  <div class="notice">
+    请在 <a href="https://market.ciyuanxiang.com/" target="_blank" rel="noopener">https://market.ciyuanxiang.com/</a> 完成登录后再执行签到。
+  </div>
+
+  <details class="card">
+    <summary>使用说明 / 弹窗被拦截怎么办</summary>
+    <ol>
+      <li>68 个打卡链接已经内置好了，登录后直接点「自动开始」或「手动逐个」即可。</li>
+      <li>要换成别的活动/链接：在输入框里按每行一条填写，支持 <code>名称 链接</code> 或只写链接，点「载入链接」即可（自动去重）。</li>
+      <li><b>自动模式</b>：按设定间隔逐个打开新标签页，停留若干秒后自动关闭（页面自己关掉的话会立刻继续下一个）。
+          <b>需要浏览器允许本页弹窗</b>，否则会立即停下并提示。</li>
+      <li><b>手动模式</b>（弹窗被拦时用）：点「手动逐个」，然后连续按 <kbd>空格</kbd> 打开下一个，按 <kbd>S</kbd> 跳过。
+          每次按键都是真实的用户操作，不会被拦截。</li>
+      <li>列表里每行有「打开 / ✓完成 / ↺重置」三个小按钮，可随时手动修正状态。关掉页面再打开会接着上次的进度。</li>
+    </ol>
+    <p>自动模式需要允许弹窗：Chrome → 设置 → 隐私和安全 → 网站设置 → 弹出式窗口和重定向 → 添加允许。
+      推荐把这个文件放到某目录后用 <code>python3 -m http.server 8765</code> 起本地服务，
+      访问 <code>http://localhost:8765/checkin-board.html</code>，这样白名单好加（可以允许 <code>localhost</code>）。
+      直接双击用 <code>file://</code> 打开时，Chrome 通常不给 file:// 加白名单，那就只能用手动模式。</p>
+    <p>签到依赖登录态：本工具用的是你当前浏览器的 cookie，所以务必先按顶部提示完成登录，再开始运行。
+      另外签到用的是同一个账号，页面停留时间别调得太短（默认 8 秒），避免请求还没打完就被关掉。</p>
+  </details>
+
+  <section class="card">
+    <h2>1 · 链接</h2>
+    <textarea id="input" placeholder="每行一条，可以写成：&#10;梦之狐工作室 https://market.ciyuanxiang.com/event/64dfxj/tour/checkin?code=A01-Sxv88tTA6w&#10;或只写链接"></textarea>
+    <div class="row">
+      <button id="load" class="primary">载入链接</button>
+      <label class="file-btn">从 txt/csv 文件导入<input type="file" id="file" accept=".txt,.csv,text/plain" hidden></label>
+      <span class="dim" id="loadInfo"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2 · 运行</h2>
+    <div class="row opts">
+      <label>每页停留 <input type="number" id="dwell" value="8" min="0" max="300" step="1"> 秒</label>
+      <label>页间隔 <input type="number" id="gap" value="1" min="0" max="120" step="1"> 秒</label>
+      <label><input type="checkbox" id="autoclose" checked> 停留后自动关闭标签页</label>
+    </div>
+    <div class="row">
+      <button id="start" class="primary">自动开始</button>
+      <button id="manual">手动逐个</button>
+      <button id="pause" disabled>暂停</button>
+      <button id="stop" disabled>停止</button>
+      <button id="reset">重置进度</button>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+    <div id="statusline" class="dim">就绪</div>
+  </section>
+
+  <section class="card">
+    <h2>3 · 列表 <span id="count" class="dim"></span></h2>
+    <div id="list" class="list"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+'use strict';
+const LS = 'checkin-board-v1';
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- 内置打卡链接（每项 [名称, code]；改这里即可换活动） ---------- */
+const CHECKIN_BASE = 'https://market.ciyuanxiang.com/event/64dfxj/tour/checkin?code=';
+const PRESET = [
+  ['梦之狐工作室', 'A01-Sxv88tTA6w'],
+  ['豆腐脑工坊', 'A02-SZIjUSM1RN'],
+  ['黎面事务所', 'A03-g0Ckqzl0If'],
+  ['春梦女巫的魔♂法工坊', 'A04-UrORbVKfIH'],
+  ['WildDream 创作站', 'A05-JLibWTHkZf'],
+  ['椰绒岛', 'A06-IIqNqJYnUs'],
+  ['白犬舍', 'A07-l88lUKaBaY'],
+  ['鬼喵卡卡', 'A08-SZf5Gxswh9'],
+  ['天绒航空', 'A09-SGrMUpCbg5'],
+  ['O2 WORLD 兽工坊', 'A10-MKChIcvXpM'],
+  ['星棱位面', 'A11-AqhfR2AslG'],
+  ['界域交锋TCG', 'A12-9tMFKe9ng4'],
+  ['戚萝卜(QLB)俱乐部', 'A13-WfASlUag9g'],
+  ['次元箱/恶魔领地', 'B01-ZEkIP3pGqu'],
+  ['向量空间', 'B02-gC4eomvshj'],
+  ['次元绒合furry铺', 'B03-JABoa20KZY'],
+  ['图横爪创', 'e13jh2-n9Hsy5VPGL'],
+  ['毛绘自荐零食铺', 'B05-03sk114Dlk'],
+  ['毛茸茸的咖啡', 'B06-ShR4vpzrt6'],
+  ['PoiAster朴星', 'B07-iuPzpJwR3c'],
+  ['钉子的力量', '0e0ku3-IT1IPF9TUe'],
+  ['毛万莎', 'B09-WVBjNkqnkp'],
+  ['陈吖猫', 'r8pmh11-QKnVs7IVE5'],
+  ['鳞梦社', 'C02-PMvPug3RoD'],
+  ['已更改', 'C03-yYSAZvCD0L'],
+  ['友谊工作', 'D01-CV5Yo8UBtL'],
+  ['福禄兽', 'D02-2hDvlBIiXk'],
+  ['界域交锋TCG', 'D03-bQQzLx2rlA'],
+  ['幻星游梦工作室', 'D04-j7M3ph7sKy'],
+  ['未来失控', 'D05-vpRXMHcQpl'],
+  ['温柔的', 'D06-dQtqKWcptK'],
+  ['更衣室内风干机打卡点', 'P1-7Q1iokPOzs'],
+  ['任意一个摄影棚打卡', 'P2-o7JZSjrls4'],
+  ['拼豆区打卡', 'P3-MIiLv58vJU'],
+  ['物料交换区打卡', 'P4-twY6mB0k7Z'],
+  ['软软区打卡', 'P5-CD01r4BBma'],
+  ['软软区帐篷内打卡', 'P6-FSggwmfWua'],
+  ['软软区云狸海报打卡', 'P7-PNrGILAl4C'],
+  ['活动A厅打卡', 'P8-nbt4nj4G6o'],
+  ['活动B厅打卡', 'P9-q4EcmvbBUD'],
+  ['酒店一楼旁扶梯“草地指引牌”打卡', 'P10-Cd6UpvoK0X'],
+  ['舞萌的指引牌打卡', 'P11-9mNe5ThPvd'],
+  ['信件交友墙打卡', 'P12-xZBwYRkhKf'],
+  ['签绘墙打卡', 'P13-LSo6tljeCN'],
+  ['签绘区打卡', 'P14-jfJxUVZvh1'],
+  ['云狸的气球打卡', 'P15-7dZx1NLT39'],
+  ['手持kt板“传奇出毛王”打卡', 'P16-K070RzdfpL'],
+  ['手持kt板“究极抗压位”打卡', '42mgbee-k6K2AQU8Rl'],
+  ['手持kt板“兄弟 来狸想城”打卡', 'P18-4F9yk2F1Bv'],
+  ['邮局任务悬赏处打卡', 'P19-WpbA2mWALm'],
+  ['拳击不倒翁打卡', 'P20-CkK2Urds5H'],
+  ['照片打印区打卡', 'P21-z7J6ZzeiVR'],
+  ['桌游领取处打卡', 'P22-0XVJxrbVId'],
+  ['最大风机打卡', 'P23-EjVdujp9Vq'],
+  ['娃娃机打卡', 'P24-0JCM6v2oPF'],
+  ['游客创作区打卡', 'P25-MPTkdWoCbL'],
+  ['医疗区打卡', 'P26-yZk3tpUr72'],
+  ['【嘉宾活动】店长喵 写生绘画派对', 'M1-DX0TGGdAUa'],
+  ['【嘉宾活动】未来失控组合 兽装制作分享', 'M2-1RJ1TCZbGq'],
+  ['【嘉宾活动】这奕之鱼 谁是贪吃鬼桌游', 'M3-BlbvJlGDhH'],
+  ['【嘉宾活动】玄泽 舞蹈教学', 'gmkduxe-y2ENWdQEDc'],
+  ['【嘉宾活动】一块电鹿板 UP 主故事分享', 'M5-wnGbf9WYK3'],
+  ['【嘉宾活动】Capo_鹿 调酒教学', 'M6-5JJemovqod'],
+  ['【嘉宾活动】小鬼卡比 明日方舟挑战赛', 'M7-LB19tIm426'],
+  ['【嘉宾活动】灸乾Ultra 从零创作OC故事', 'M8-gtCYb4RWM4'],
+  ['【嘉宾活动】白洵Haku 兽装穿搭教学', 'M9-x2wtHIY170'],
+  ['【嘉宾活动】天绒航空 航空主题分享', 'M10-h9uTPdOXN7'],
+  ['【嘉宾活动】陈吖猫 涂鸦文化分享', 'M11-uwfg2fd1Q0']
+];
+const presetUrl = code => CHECKIN_BASE + code;
+const presetText = () => PRESET.map(([name, code]) => `${name} ${presetUrl(code)}`).join('\n');
+const PRESET_NAME = new Map(PRESET.map(([name, code]) => [presetUrl(code), name]));
+
+let items = [];          // {url, name, status:'pending'|'opening'|'done'|'failed', el}
+let running = false, paused = false, mode = 'auto';
+let userResolve = null;  // 手动模式等待用户按键
+let liveWin = null;      // 自动模式当前打开的窗口
+
+/* ---------- 持久化 ---------- */
+function save(){
+  try {
+    localStorage.setItem(LS, JSON.stringify(items.map(i => ({url:i.url, name:i.name, status:i.status}))));
+  } catch (e) { /* file:// 或隐私模式禁用存储时静默降级 */ }
+}
+function restore(){
+  try {
+    const raw = localStorage.getItem(LS);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data)) return;
+    items = data
+      .filter(x => x && typeof x.url === 'string')
+      .map(x => ({
+        url: x.url,
+        name: (typeof x.name === 'string' && x.name) || PRESET_NAME.get(x.url) || '',
+        status: x.status === 'done' ? 'done' : 'pending'
+      }));
+  } catch (e) {}
+}
+
+/* ---------- 解析：支持「名称 链接」或纯链接，每行一条 ---------- */
+const URL_RE = /https?:\/\/[^\s,;、，。<>"'）)】]+/g;
+function parseUrls(text){
+  const out = [], seen = new Set();
+  for (const line of String(text).split(/\r?\n/)) {
+    URL_RE.lastIndex = 0;
+    const found = [];
+    let m;
+    while ((m = URL_RE.exec(line))) found.push({url: m[0], start: m.index});
+    let prevEnd = 0;
+    for (const f of found) {
+      const name = line.slice(prevEnd, f.start).trim();
+      prevEnd = f.start + f.url.length;
+      let u;
+      try { u = new URL(f.url); } catch (e) { continue; }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+      if (seen.has(u.href)) continue;
+      seen.add(u.href);
+      out.push({url: u.href, name});
+    }
+  }
+  return out;
+}
+function loadFromText(text){
+  const parsed = parseUrls(text);
+  if (!parsed.length) { $('#loadInfo').textContent = '没识别到 http/https 链接'; return; }
+  const prev = new Map(items.map(i => [i.url, i.status]));
+  items = parsed.map(p => ({
+    url: p.url,
+    name: p.name || PRESET_NAME.get(p.url) || '',
+    status: prev.get(p.url) === 'done' ? 'done' : 'pending'
+  }));
+  save(); render();
+  $('#loadInfo').textContent = `已载入 ${parsed.length} 条`;
+}
+function syncTextarea(){
+  $('#input').value = items.map(i => i.name ? `${i.name} ${i.url}` : i.url).join('\n');
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const box = $('#list');
+  box.textContent = '';
+  const frag = document.createDocumentFragment();
+  items.forEach((it, i) => {
+    const row = document.createElement('div');
+    row.className = 'item ' + it.status;
+    const idx = document.createElement('span'); idx.className = 'idx'; idx.textContent = i + 1;
+    const dot = document.createElement('span'); dot.className = 'dot';
+    const a = document.createElement('a');
+    a.className = 'url'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = it.name || it.url;
+    a.title = it.name ? `${it.name}\n${it.url}` : it.url;
+    a.addEventListener('click', () => setStatus(it, 'done'));
+    const acts = document.createElement('span'); acts.className = 'acts';
+    acts.append(
+      mkBtn('打开', () => { window.open(it.url, '_blank'); setStatus(it, 'done'); }),
+      mkBtn('✓', () => setStatus(it, 'done')),
+      mkBtn('↺', () => setStatus(it, 'pending'))
+    );
+    row.append(idx, dot, a);
+    const tail = codeTag(it.url);
+    if (it.name && tail) row.append(tail);
+    row.append(acts);
+    it.el = row;
+    frag.append(row);
+  });
+  box.append(frag);
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'dim';
+    empty.style.padding = '14px';
+    empty.textContent = '还没有链接。';
+    box.append(empty);
+  }
+  updateProgress();
+  if (!running) scrollToPending();
+}
+function codeTag(url){
+  const m = url.match(/[?&]code=([^&]+)/);
+  if (!m) return null;
+  const s = document.createElement('span');
+  s.className = 'tail';
+  s.textContent = m[1].split('-')[0];
+  return s;
+}
+function mkBtn(label, fn){
+  const b = document.createElement('button');
+  b.className = 'mini'; b.textContent = label; b.type = 'button';
+  b.addEventListener('click', fn);
+  return b;
+}
+function paint(it){
+  if (it.el) it.el.className = 'item ' + it.status;
+}
+function setStatus(it, s){
+  it.status = s;
+  paint(it);
+  save();
+  updateProgress();
+  if (s === 'opening') scrollTo(it);
+}
+function updateProgress(){
+  const done = items.filter(i => i.status === 'done').length;
+  const total = items.length;
+  $('#count').textContent = total ? `${done} / ${total} 完成` : '';
+  $('#bar').style.width = total ? (done / total * 100) + '%' : '0';
+  return done;
+}
+function scrollTo(it){
+  if (it.el) it.el.scrollIntoView({block:'nearest'});
+  items.forEach(x => { if (x.el) x.el.classList.remove('cur'); });
+  if (it.el) it.el.classList.add('cur');
+}
+function scrollToPending(){
+  items.forEach(x => { if (x.el) x.el.classList.remove('cur'); });
+  const it = items.find(i => i.status === 'pending');
+  if (it && it.el) it.el.classList.add('cur');
+}
+function say(msg, cls){ const el = $('#statusline'); el.textContent = msg; el.className = cls || 'dim'; }
+
+/* ---------- 运行控制 ---------- */
+function renderControls(){
+  $('#start').disabled = running;
+  $('#manual').disabled = running;
+  $('#pause').disabled = !running;
+  $('#stop').disabled = !running;
+  $('#pause').textContent = paused ? '继续' : '暂停';
+}
+function start(m){
+  if (running) return;
+  if (!items.length) { say('请先载入链接', 'hint'); return; }
+  if (!items.some(i => i.status === 'pending')) { say('没有待处理的链接（可先「重置进度」）', 'hint'); return; }
+  mode = m; running = true; paused = false;
+  renderControls();
+  say(m === 'auto' ? '运行中（自动）…' : '运行中（手动：按空格打开下一个，S 跳过）');
+  loop();
+}
+function stop(msg, cls){
+  running = false; paused = false;
+  resolveUser('abort');
+  renderControls();
+  scrollToPending();
+  if (msg) say(msg, cls);
+}
+function finish(){
+  running = false; paused = false; userResolve = null;
+  renderControls();
+  const total = items.length;
+  say(`全部处理完毕：${total} 条 🎉`);
+}
+
+async function loop(){
+  while (running) {
+    if (paused) { await sleep(150); continue; }
+    const it = items.find(i => i.status === 'pending');
+    if (!it) { finish(); return; }
+
+    if (mode === 'auto') {
+      const w = window.open(it.url, '_blank');
+      if (!w) { say('弹窗被浏览器拦截了 —— 请按页面顶部说明允许弹窗，或改用「手动逐个」模式', 'hint'); return stop(); }
+      liveWin = w;
+      setStatus(it, 'opening');
+      const dwell = Math.max(0, +$('#dwell').value || 0);
+      const closedItself = await waitWindowClosed(liveWin, dwell * 1000);
+      if (!closedItself && $('#autoclose').checked && liveWin && !liveWin.closed) {
+        try { liveWin.close(); } catch (e) {}
+      }
+      liveWin = null;
+      setStatus(it, 'done');
+      const gap = Math.max(0, +$('#gap').value || 0);
+      if (gap) await sleep(gap * 1000);
+    } else {
+      setStatus(it, 'opening');
+      if (await waitUser() !== 'handled') { setStatus(it, 'pending'); return; }
+      setStatus(it, 'done');
+    }
+  }
+}
+
+/* 等待窗口关闭；打卡页自己关掉就立即返回，否则等满 maxMs */
+async function waitWindowClosed(w, maxMs){
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    if (!w || w.closed) return true;
+    await sleep(250);
+  }
+  return !!(w && w.closed);
+}
+
+/* 手动模式：每次按键/点击都在用户手势内调用 window.open，不会被拦截 */
+function waitUser(){ return new Promise(r => { userResolve = r; }); }
+function resolveUser(value){
+  const r = userResolve; userResolve = null;
+  if (r) r(value);
+}
+function fireUser(open){
+  if (!userResolve) return;
+  const it = items.find(i => i.status === 'opening');
+  if (it && open) {
+    const w = window.open(it.url, '_blank');
+    if (!w) say('弹窗仍被拦截，请检查浏览器弹窗设置', 'hint');
+  }
+  resolveUser('handled');
+}
+
+/* ---------- 事件 ---------- */
+$('#load').addEventListener('click', () => loadFromText($('#input').value));
+$('#file').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { $('#input').value = String(rd.result || ''); loadFromText($('#input').value); };
+  rd.readAsText(f, 'utf-8');
+  e.target.value = '';
+});
+$('#start').addEventListener('click', () => start('auto'));
+$('#manual').addEventListener('click', () => start('manual'));
+$('#pause').addEventListener('click', () => { paused = !paused; renderControls(); say(paused ? '已暂停' : '继续运行…'); });
+$('#stop').addEventListener('click', () => stop('已停止'));
+$('#reset').addEventListener('click', () => {
+  items.forEach(i => { i.status = 'pending'; paint(i); });
+  save(); updateProgress(); scrollToPending(); say('进度已重置');
+});
+
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+  if (!running || mode !== 'manual' || !userResolve) return;
+  if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+    e.preventDefault(); fireUser(true);
+  } else if (e.code === 'KeyS') {
+    e.preventDefault(); say('已跳过当前项'); fireUser(false);
+  }
+});
+
+/* ---------- 启动 ---------- */
+restore();
+if (items.length) {
+  render();
+  syncTextarea();
+  $('#loadInfo').textContent = `已从本地恢复 ${items.length} 条，进度已保留`;
+} else {
+  $('#input').value = presetText();
+  loadFromText($('#input').value);
+  $('#loadInfo').textContent = `已内置 ${PRESET.length} 条`;
+}
+renderControls();
+})();
+</script>
+</body>
+</html>
